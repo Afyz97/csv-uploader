@@ -1,3 +1,5 @@
+<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+
 # 📦 Laravel CSV Upload & Background Processing System
 
 A lightweight, asynchronous **CSV Upload Management System** built with **Laravel**, featuring background job queues, real-time upload tracking, and idempotent UPSERT data handling.
@@ -242,11 +244,11 @@ This keeps uploads fast and responsive — even for large files.
 
 ---
 
-## 🧾 License
+<!-- ## 🧾 License
 
 This project is open-source and available under the [MIT License](LICENSE).
 
----
+--- -->
 
 ## 💬 Author
 
