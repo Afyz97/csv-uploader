@@ -1,59 +1,258 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# 📦 Laravel CSV Upload & Background Processing System
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+A lightweight, asynchronous **CSV Upload Management System** built with **Laravel**, featuring background job queues, real-time upload tracking, and idempotent UPSERT data handling.
 
-## About Laravel
+![Laravel](https://img.shields.io/badge/Laravel-11.x-FF2D20?logo=laravel&logoColor=white)
+![PHP](https://img.shields.io/badge/PHP-8.3-blue?logo=php)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+---
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## 🚀 Features
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+-   ✅ **Drag & Drop CSV Upload**
+-   ✅ **Background Job Processing (Queue)**
+-   ✅ **UPSERT Logic (Idempotent Data Import)**
+-   ✅ **Real-Time Upload Status (Polling)**
+-   ✅ **Detailed Upload History**
+-   ✅ **Clean UI with Bootstrap 5**
+-   ✅ **Supports Large Files (streamed processing)**
 
-## Learning Laravel
+---
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+## 🧠 System Overview
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+This project allows users to upload CSV files which are processed asynchronously.  
+Each upload is tracked, parsed, and used to insert or update (`UPSERT`) product records in the database.  
+Users can see real-time upload progress and maintain a complete history of all uploads.
 
-## Laravel Sponsors
+### Data Flow
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+```mermaid
+flowchart LR
+    A[User Uploads CSV] --> B[UploadController]
+    B --> C[Save File via Storage]
+    B --> D[Create Upload Record]
+    D --> E[Dispatch ProcessUploadJob]
+    E -->|Background Queue| F[Process CSV & UPSERT Products]
+    F --> G[Update Upload Status]
+    G --> H[Upload History UI]
+```
 
-### Premium Partners
+---
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+## 🧩 Project Structure
 
-## Contributing
+| Component                        | Description                                                   |
+| -------------------------------- | ------------------------------------------------------------- |
+| **UploadController**             | Handles uploads, stores files, and dispatches background jobs |
+| **ProcessUploadJob**             | Background worker that parses and imports CSV data            |
+| **Upload Model**                 | Stores file metadata, status, and stats                       |
+| **Product Model**                | Stores imported CSV rows (with unique `UNIQUE_KEY`)           |
+| **UploadResource (Transformer)** | Converts upload data into JSON for front-end polling          |
+| **Blade View**                   | Clean UI with drag-and-drop uploader and live status updates  |
+| **Queue Worker**                 | Executes background jobs (non-blocking uploads)               |
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+---
 
-## Code of Conduct
+## 🗃️ Database Schema
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+### uploads table
 
-## Security Vulnerabilities
+Tracks all uploaded files.
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+| Column            | Description                              |
+| ----------------- | ---------------------------------------- |
+| `id`              | Primary key                              |
+| `original_name`   | Uploaded filename                        |
+| `stored_path`     | Storage path in `/storage/app/uploads/`  |
+| `checksum_sha256` | File hash for idempotency                |
+| `status`          | queued / processing / completed / failed |
+| `rows_total`      | Rows read                                |
+| `rows_upserted`   | Rows inserted or updated                 |
+| `rows_failed`     | Rows skipped or invalid                  |
+| `meta`            | JSON error or mapping data               |
+| `timestamps`      | Laravel created_at, updated_at           |
 
-## License
+### products table
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Stores the parsed product data (UPSERT target).
+
+| Column                   | Description                         |
+| ------------------------ | ----------------------------------- |
+| `unique_key`             | Unique identifier (used for UPSERT) |
+| `product_title`          | Product name                        |
+| `product_description`    | Description text                    |
+| `style_no`               | Style number                        |
+| `sanmar_mainframe_color` | Color reference                     |
+| `size`                   | Product size                        |
+| `color_name`             | Color display name                  |
+| `piece_price`            | Decimal price                       |
+| `timestamps`             | created_at, updated_at              |
+
+---
+
+## ⚙️ Installation & Setup
+
+### 1️⃣ Clone the repository
+
+```bash
+git clone https://github.com/yourusername/laravel-csv-uploader.git
+cd laravel-csv-uploader
+```
+
+### 2️⃣ Install dependencies
+
+```bash
+composer install
+npm install && npm run build   # optional if you use Vite
+```
+
+### 3️⃣ Create `.env`
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` to use SQLite (for simplicity):
+
+```env
+DB_CONNECTION=sqlite
+DB_DATABASE=/absolute/path/to/your/project/database/database.sqlite
+QUEUE_CONNECTION=database
+FILESYSTEM_DISK=local
+```
+
+### 4️⃣ Create database & run migrations
+
+```bash
+php artisan migrate
+```
+
+### 5️⃣ Start the server & queue worker
+
+```bash
+php artisan serve
+php artisan queue:work --queue=uploads,default --memory=512
+```
+
+### 6️⃣ Visit in browser
+
+> http://127.0.0.1:8000
+
+---
+
+## 🧮 CSV File Format
+
+| Field                  | Description                                 |
+| ---------------------- | ------------------------------------------- |
+| UNIQUE_KEY             | Primary unique identifier (used for UPSERT) |
+| PRODUCT_TITLE          | Product title                               |
+| PRODUCT_DESCRIPTION    | Description text                            |
+| STYLE#                 | Style number                                |
+| SANMAR_MAINFRAME_COLOR | Color reference                             |
+| SIZE                   | Product size                                |
+| COLOR_NAME             | Color display name                          |
+| PIECE_PRICE            | Decimal price                               |
+
+Example CSV:
+
+```csv
+UNIQUE_KEY,PRODUCT_TITLE,PRODUCT_DESCRIPTION,STYLE#,SANMAR_MAINFRAME_COLOR,SIZE,COLOR_NAME,PIECE_PRICE
+A100,Classic Tee,Soft cotton tee,ST-01,RED,M,Crimson,9.99
+A101,Polo Shirt,Premium blend,ST-02,BLUE,L,Sky Blue,14.50
+```
+
+---
+
+## 🔁 UPSERT Behavior (Idempotency)
+
+The system uses `DB::table('products')->upsert()`:
+
+-   If `UNIQUE_KEY` **exists**, update the row.
+-   If not, **insert** a new one.
+
+This ensures:
+
+-   No duplicate products.
+-   Re-uploading the same file just updates existing data.
+
+---
+
+## 🧵 Background Queue
+
+All uploads are processed asynchronously.
+
+```bash
+php artisan queue:work --queue=uploads,default
+```
+
+This keeps uploads fast and responsive — even for large files.
+
+---
+
+## 💻 Front-End (Blade)
+
+-   Uses **Bootstrap 5**
+-   Features **drag & drop upload area**
+-   Shows **uploading indicator**
+-   Displays upload history with status badges
+-   Polls backend `/uploads/poll` every 3s for updates
+
+---
+
+## 📄 Example Workflow
+
+1️⃣ Drag & drop a CSV file into the drop zone  
+2️⃣ The file is validated and queued for processing  
+3️⃣ `ProcessUploadJob` reads and parses the file in the background  
+4️⃣ Data is upserted into the `products` table  
+5️⃣ The upload status updates in the browser automatically
+
+---
+
+## 🔍 Technologies Used
+
+-   **Laravel 11.x**
+-   **Bootstrap 5**
+-   **Laravel Queues (database driver)**
+-   **Laravel Storage (local disk)**
+-   **League\CSV** for advanced CSV parsing
+-   **SQLite / MySQL** for persistence
+
+---
+
+## 🧑‍💻 Developer Notes
+
+-   Re-uploads with the same filename are allowed (no conflicts).
+-   Each upload is timestamped and tracked individually.
+-   Background jobs handle CSV parsing and UPSERT operations.
+-   Upload status updates are fetched via polling (3s interval).
+-   The design is responsive and user-friendly.
+
+---
+
+## 🧩 Possible Enhancements
+
+-   [ ] Real-time WebSocket updates (Laravel Echo / Pusher)
+-   [ ] Redis queue backend for performance
+-   [ ] CSV validation rules (required columns, data types)
+-   [ ] File storage on AWS S3 / Google Cloud
+-   [ ] Multi-file batch uploads
+
+---
+
+## 🧾 License
+
+This project is open-source and available under the [MIT License](LICENSE).
+
+---
+
+## 💬 Author
+
+**Amir Nadzim Kaharudin**  
+🎓 International Islamic University Malaysia — Bachelor of Information Technology (Information Assurance and Security)
+💻 Full-stack Laravel / React Developer  
+📧 [amirnadzim97@gmail.com](mailto:amirnadzim97@gmail.com)
+
+> _“Asynchronous systems are not just faster — they make users happier.”_

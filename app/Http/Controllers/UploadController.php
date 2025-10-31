@@ -10,80 +10,74 @@ use Illuminate\Support\Facades\Storage;
 
 class UploadController extends Controller
 {
+    /**
+     * Show upload form + recent uploads list.
+     */
     public function index()
     {
         $uploads = Upload::latest()->take(50)->get();
         return view('uploads.index', compact('uploads'));
     }
 
+    /**
+     * Accept a CSV upload and enqueue background processing.
+     * Allows multiple uploads with the SAME original filename without conflicts.
+     */
     public function store(Request $request)
     {
         $request->validate([
             'csv' => [
                 'required',
                 'file',
+                // Accept common CSV mimetypes across browsers
                 'mimes:csv,txt',
                 'mimetypes:text/plain,text/csv,application/csv,application/vnd.ms-excel',
-                'max:2097152' // 2GB in KB; adjust to your needs
+                // Value is in kilobytes; 2 GB shown as example (adjust to your policy)
+                'max:2097152',
             ],
         ]);
 
         $file = $request->file('csv');
 
-        // Stream checksum (no large memory usage)
+        // Streamed checksum (no large memory spike)
         $checksum = hash_file('sha256', $file->getRealPath());
 
-        // Sanitize original filename (Windows-safe)
-        $orig = $file->getClientOriginalName();
-        $cleanOrig = preg_replace('/[^\w\-. ]+/u', '_', $orig);
+        // Sanitize original filename for Windows safety
+        $originalName = $file->getClientOriginalName();
+        $cleanName    = preg_replace('/[^\w\-. ]+/u', '_', $originalName);
 
-        // Save using Storage (local disk)
+        // Persist the file on the 'local' disk; prefix with timestamp to avoid collisions
         $storedPath = Storage::disk('local')->putFileAs(
             'uploads',
             $file,
-            now()->format('Ymd_His') . '_' . $cleanOrig
+            now()->format('Ymd_His') . '_' . $cleanName
         );
 
-        try {
-            $upload = Upload::create([
-                'original_name'   => $orig,
-                'stored_path'     => $storedPath,
-                'mime'            => $file->getClientMimeType(),
-                'size_bytes'      => $file->getSize(),
-                'checksum_sha256' => $checksum,
-                'status'          => 'queued',
-            ]);
-        } catch (\Throwable $e) {
-            // Duplicate checksum + same name: record as skipped (idempotent history)
-            // still store the file (different name) so user sees attempt
-            $altStoredPath = Storage::disk('local')->putFileAs(
-                'uploads',
-                $file,
-                now()->format('Ymd_His') . '_dup_' . $cleanOrig
-            );
+        // Always create a history record (no unique constraint, no try/catch)
+        $upload = Upload::create([
+            'original_name'   => $originalName,
+            'stored_path'     => $storedPath,
+            'mime'            => $file->getClientMimeType(),
+            'size_bytes'      => $file->getSize(),
+            'checksum_sha256' => $checksum,
+            'status'          => 'queued',
+            // Optional: mark duplicates silently (same checksum as a prior upload)
+            // 'meta'            => optional(
+            //     Upload::where('checksum_sha256', $checksum)->oldest()->first()
+            // )->only('id') ? ['duplicate_of' => Upload::where('checksum_sha256', $checksum)->oldest()->first()->id] : null,
+        ]);
 
-            $upload = Upload::create([
-                'original_name'   => $orig,
-                'stored_path'     => $altStoredPath,
-                'mime'            => $file->getClientMimeType(),
-                'size_bytes'      => $file->getSize(),
-                'checksum_sha256' => $checksum,
-                'status'          => 'skipped',
-                'meta'            => ['reason' => 'Duplicate of previously uploaded file; processing skipped'],
-            ]);
-
-            return redirect()->route('uploads.index')
-                ->with('message', 'Duplicate file detected — upload recorded but processing skipped.');
-        }
-
-        // Dispatch background job
+        // Queue the background job (products are idempotent via UPSERT on unique_key)
         ProcessUploadJob::dispatch($upload);
 
-        return redirect()->route('uploads.index')
+        return redirect()
+            ->route('uploads.index')
             ->with('message', 'File queued for processing.');
     }
 
-    // JSON endpoint for polling
+    /**
+     * JSON for polling the latest uploads (uses a Transformer).
+     */
     public function poll()
     {
         $uploads = Upload::latest()->take(50)->get();

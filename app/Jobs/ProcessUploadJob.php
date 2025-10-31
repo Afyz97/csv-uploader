@@ -115,7 +115,7 @@ class ProcessUploadJob implements ShouldQueue
             if ($val === null) return null;
             $enc = mb_detect_encoding($val, ['UTF-8', 'ISO-8859-1', 'Windows-1252', 'ASCII'], true) ?: 'UTF-8';
             $v = mb_convert_encoding($val, 'UTF-8', $enc);
-            // strip control chars except \t \n \r
+
             $v = preg_replace('/[^\P{C}\t\n\r]/u', '', $v);
             return trim($v);
         };
